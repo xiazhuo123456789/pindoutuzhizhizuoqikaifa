@@ -1,0 +1,119 @@
+<view class="container">
+  <!-- 标题区 -->
+  <view class="header">
+    <view class="brand">
+      <text class="brand-mark">豆</text>
+      <text class="brand-name">豆趣</text>
+      <text class="brand-sub">BEAD FUN</text>
+    </view>
+    <view class="hero-title">
+      <text class="hero-main">把喜欢的照片，</text>
+      <text class="hero-em">变成一幅拼豆图纸</text>
+    </view>
+  </view>
+
+  <!-- 上传区 -->
+  <view class="upload-section" bindtap="chooseImage">
+    <view class="upload-icon">↑</view>
+    <text class="upload-text" wx:if="{{!imagePath}}">点击上传照片</text>
+    <image wx:if="{{imagePath}}" src="{{imagePath}}" class="upload-thumb" mode="aspectFill"></image>
+    <text class="upload-hint">支持 JPG / PNG</text>
+  </view>
+
+  <!-- 控制面板 -->
+  <view class="control-panel" wx:if="{{imagePath}}">
+    <view class="panel-title">
+      <text class="panel-num">01</text>
+      <text>图纸设置</text>
+    </view>
+
+    <!-- 尺寸 -->
+    <view class="field">
+      <view class="field-label">
+        <text>图纸尺寸</text>
+        <text class="field-value">{{gridSize}} × {{gridSize}}</text>
+      </view>
+      <slider class="slider" min="16" max="100" value="{{gridSize}}" step="1" bindchanging="onSizeChange" bindchange="onSizeChange" activeColor="#C8F04A" backgroundColor="#E0DCD0" block-size="20"/>
+    </view>
+
+    <!-- 色数 -->
+    <view class="field">
+      <view class="field-label">
+        <text>使用色号</text>
+        <text class="field-value">{{colorLimit >= 221 ? '全221色' : colorLimit + ' 色'}}</text>
+      </view>
+      <slider class="slider" min="8" max="221" value="{{colorLimit}}" step="1" bindchanging="onColorChange" bindchange="onColorChange" activeColor="#C8F04A" backgroundColor="#E0DCD0" block-size="20"/>
+    </view>
+
+    <!-- 采样方式 -->
+    <view class="field">
+      <view class="field-label"><text>采样方式</text></view>
+      <view class="toggle-group">
+        <view class="toggle-btn {{sampleMode === 'average' ? 'active' : ''}}" data-mode="average" bindtap="onSampleModeChange">平均色</view>
+        <view class="toggle-btn {{sampleMode === 'dominant' ? 'active' : ''}}" data-mode="dominant" bindtap="onSampleModeChange">主导色</view>
+      </view>
+    </view>
+
+    <!-- 开关 -->
+    <view class="field">
+      <view class="field-label"><text>高级选项</text></view>
+      <view class="toggle-group">
+        <view class="toggle-btn {{useDither ? 'active' : ''}}" bindtap="onDitherToggle">抖动</view>
+        <view class="toggle-btn {{showGrid ? 'active' : ''}}" bindtap="onGridToggle">网格</view>
+        <view class="toggle-btn {{showLabels ? 'active' : ''}}" bindtap="onLabelToggle">色号</view>
+      </view>
+    </view>
+  </view>
+
+  <!-- 预览区 -->
+  <view class="preview-section" wx:if="{{imagePath}}">
+    <view class="preview-header">
+      <view class="preview-title">
+        <view class="live-dot"></view>
+        <text>实时预览</text>
+      </view>
+    </view>
+    <view class="canvas-wrap">
+      <canvas canvas-id="beadCanvas" class="bead-canvas" style="width:{{canvasDisplaySize}}px;height:{{canvasDisplaySize}}px;"></canvas>
+      <view class="canvas-empty" wx:if="{{!hasResult}}">
+        <text class="empty-icon">✦</text>
+        <text>调整参数后自动生成</text>
+      </view>
+    </view>
+  </view>
+
+  <!-- 材料清单 -->
+  <view class="material-section" wx:if="{{materialList.length > 0}}">
+    <view class="material-header">
+      <view>
+        <text class="material-eyebrow">YOUR MATERIALS</text>
+        <text class="material-title">材料清单</text>
+      </view>
+      <view class="material-total">
+        <text class="total-num">{{totalBeads}}</text>
+        <text class="total-label">颗珠子</text>
+      </view>
+    </view>
+    <scroll-view class="material-list" scroll-y>
+      <view class="material-item" wx:for="{{materialList}}" wx:key="idx">
+        <view class="material-color" style="background:{{item.hex}};"></view>
+        <view class="material-meta">
+          <text class="material-code">{{item.code}}</text>
+          <text class="material-desc">MARD 色号</text>
+        </view>
+        <text class="material-qty">{{item.qty}}</text>
+      </view>
+    </scroll-view>
+  </view>
+
+  <!-- 导出按钮 -->
+  <view class="footer" wx:if="{{imagePath}}">
+    <button class="export-btn" bindtap="exportImage" disabled="{{!hasResult}}">
+      <text class="export-icon">↓</text>
+      <text>保存图纸到相册</text>
+    </button>
+  </view>
+
+  <!-- 隐藏的canvas，用于获取图片像素数据 -->
+  <canvas canvas-id="hiddenCanvas" class="hidden-canvas"></canvas>
+</view>

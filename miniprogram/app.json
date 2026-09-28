@@ -1,0 +1,14 @@
+{
+  "pages": [
+    "pages/index/index"
+  ],
+  "window": {
+    "backgroundTextStyle": "light",
+    "navigationBarBackgroundColor": "#F5F1E8",
+    "navigationBarTitleText": "豆趣 · 拼豆图纸制作器",
+    "navigationBarTextStyle": "black",
+    "backgroundColor": "#F5F1E8"
+  },
+  "style": "v2",
+  "sitemapLocation": "sitemap.json"
+}
