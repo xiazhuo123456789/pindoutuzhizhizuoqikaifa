@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>豆趣 · 拼豆图纸制作器</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Noto+Sans+SC:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css" />
+  <script src="palette.js"></script>
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar"><div class="brand"><span class="brand-mark">豆</span><span>豆趣</span><small>BEAD FUN</small></div><div class="top-actions"><button class="icon-button" aria-label="帮助">?</button><button class="avatar">小</button></div></header>
+    <main>
+      <section class="hero-row"><div><p class="eyebrow">PIXEL BEAD STUDIO</p><h1>把喜欢的照片，<br><em>变成一幅拼豆图纸</em></h1><p class="hero-copy">上传图片，调好尺寸与色彩，剩下的交给豆趣。</p></div><div class="hero-stats"><div><strong>12,480</strong><span>今日生成图纸</span></div><div><strong>4.9</strong><span>豆友评分</span></div></div></section>
+      <section class="workspace">
+        <aside class="controls-panel">
+          <div class="panel-heading"><span>01</span><h2>导入图片</h2></div>
+          <label class="upload-zone" id="uploadZone"><input id="fileInput" type="file" accept="image/*" /><div class="upload-icon">↑</div><strong>点击上传照片</strong><span>支持 JPG / PNG，最大 10MB</span></label>
+          <div class="divider"></div><div class="panel-heading"><span>02</span><h2>图纸设置</h2></div>
+          <div class="field"><div class="field-label"><label for="sizeRange">图纸尺寸</label><output id="sizeValue">32 × 32</output></div><input id="sizeRange" type="range" min="16" max="64" value="32" step="1" /></div>
+          <div class="field"><div class="field-label"><label for="beadSize">珠子规格</label><span class="select-shell"><select id="beadSize"><option value="2.6">2.6 mm · 标准</option><option value="5">5 mm · 大颗粒</option></select></span></div></div>
+          <div class="field"><div class="field-label"><label for="paletteRange">使用色号</label><output id="paletteValue">24 色</output></div><input id="paletteRange" type="range" min="8" max="221" value="24" step="1" /></div>
+          <div class="field"><div class="field-label"><label>采样方式</label></div><div class="toggle-group"><button id="sampleAverage" class="toggle-btn active">平均色</button><button id="sampleDominant" class="toggle-btn">主导色</button></div></div>
+          <div class="field"><div class="field-label"><label>高级选项</label></div><div class="toggle-group"><button id="ditherToggle" class="toggle-btn">抖动</button></div></div>
+          <div class="swatches" id="swatches"></div><button class="primary-button" id="downloadBtn"><span>↓</span> 导出图纸</button>
+        </aside>
+        <section class="preview-panel"><div class="preview-toolbar"><div><span class="live-dot"></span><span>实时预览</span></div><div class="toolbar-actions"><button id="gridToggle" class="tool-button active">▦ 网格</button><button id="labelToggle" class="tool-button active">A 色号</button><button class="tool-button" id="resetBtn">↺ 重置</button></div></div><div class="canvas-wrap"><canvas id="beadCanvas" width="640" height="640"></canvas><div class="canvas-empty" id="canvasEmpty"><div class="empty-art">✦</div><strong>你的图纸会出现在这里</strong><span>上传一张照片开始创作</span></div></div><div class="preview-footer"><div class="tip"><span>✦</span><span>建议选择主体清晰、光线充足的照片</span></div><div class="zoom"><button id="zoomOut">−</button><span id="zoomValue">100%</span><button id="zoomIn">＋</button></div></div></section>
+      </section>
+      <section class="results-section"><div class="results-head"><div><p class="eyebrow">YOUR MATERIALS</p><h2>材料清单</h2></div><div class="total-count"><strong id="totalBeads">0</strong><span>颗珠子</span></div></div><div class="material-grid" id="materialGrid"><div class="no-data">上传图片后，这里会自动生成色号清单</div></div></section>
+    </main><footer><span>豆趣 · 让每一颗珠子，都有它的位置</span><span>本地处理 · 图片不会上传云端</span></footer>
+  </div><script src="app.js"></script>
+</body>
+</html>
