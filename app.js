@@ -144,10 +144,9 @@ function sampleAverage(img, gridSize, scale = 4) {
 // ========== 像素化：主导色提取 ==========
 
 /**
- * 主导色提取：每个格子里出现频率最高的颜色
- * 边界清晰，不会出现平均色导致的灰色毛边，适合卡通图
+ * 主导色提取 v2：scale=8更稳定、16级量化、深色轮廓保护
  */
-function sampleDominant(img, gridSize, scale = 4) {
+function sampleDominant(img, gridSize, scale = 8) {
   const workSize = gridSize * scale;
   const t = document.createElement('canvas');
   t.width = t.height = workSize;
@@ -163,31 +162,54 @@ function sampleDominant(img, gridSize, scale = 4) {
     for (let x = 0; x < gridSize; x++) {
       const freq = {};
       let transparent = 0;
+      let darkPixels = 0;
+      let darkestR = 255, darkestG = 255, darkestB = 255, darkestBright = 255;
+
       for (let dy = 0; dy < scale; dy++) {
         for (let dx = 0; dx < scale; dx++) {
           const px = x * scale + dx;
           const py = y * scale + dy;
           const idx = (py * workSize + px) * 4;
           if (data[idx + 3] < 128) { transparent++; continue; }
-          // 量化到 32 级减少颜色数量
-          const r = data[idx] >> 3 << 3;
-          const g = data[idx + 1] >> 3 << 3;
-          const b = data[idx + 2] >> 3 << 3;
-          const key = r + '_' + g + '_' + b;
+
+          const r = data[idx], g = data[idx + 1], b = data[idx + 2];
+          const brightness = r * 0.299 + g * 0.587 + b * 0.114;
+          if (brightness < 90) {
+            darkPixels++;
+            if (brightness < darkestBright) {
+              darkestBright = brightness;
+              darkestR = r; darkestG = g; darkestB = b;
+            }
+          }
+
+          // 量化到 16 级（更粗，更容易找到主导色）
+          const qr = r >> 4 << 4;
+          const qg = g >> 4 << 4;
+          const qb = b >> 4 << 4;
+          const key = qr + '_' + qg + '_' + qb;
           freq[key] = (freq[key] || 0) + 1;
         }
       }
+
       const total = scale * scale;
       if (transparent > total / 2) {
         result.push(null);
-      } else {
-        let bestKey = null, bestCount = 0;
-        for (const k in freq) {
-          if (freq[k] > bestCount) { bestCount = freq[k]; bestKey = k; }
-        }
-        const [r, g, b] = bestKey.split('_').map(Number);
-        result.push([r, g, b]);
+        continue;
       }
+
+      // 轮廓保护：深色像素占比超过20%，直接用最深的颜色
+      if (darkPixels >= total * 0.2) {
+        result.push([darkestR, darkestG, darkestB]);
+        continue;
+      }
+
+      // 取出现频率最高的颜色
+      let bestKey = null, bestCount = 0;
+      for (const k in freq) {
+        if (freq[k] > bestCount) { bestCount = freq[k]; bestKey = k; }
+      }
+      const [r, g, b] = bestKey.split('_').map(Number);
+      result.push([r, g, b]);
     }
   }
   return result;
@@ -197,7 +219,7 @@ function sampleDominant(img, gridSize, scale = 4) {
 
 /**
  * 先统计图纸中实际用到的色号，再按 Lab 相似度贪心合并到 targetN 色
- * 改进：深色和高饱和度色权重更高（通常是轮廓色和主角色），不容易被合并
+ * v2：增加亮度差异约束（亮度差>30不合并），降低深色保护权重
  */
 function mergeToNColors(grid, targetN) {
   const count = {};
@@ -208,35 +230,50 @@ function mergeToNColors(grid, targetN) {
   const used = Object.keys(count).map(Number);
   if (used.length <= targetN) return { grid, allowedIndices: used };
 
-  // 颜色重要性权重：深色 + 高饱和度 = 更重要（轮廓色、主角色）
+  // 颜色重要性权重：适度保护深色和高饱和度色
   function colorWeight(idx) {
     const p = PALETTE[idx];
     const L = p.lab[0], a = p.lab[1], b = p.lab[2];
     const darkness = (100 - L) / 100;
     const saturation = Math.sqrt(a * a + b * b) / 100;
-    return 1 + darkness * 2.5 + saturation * 1.5;
+    return 1 + darkness * 1.5 + saturation * 1.0;
   }
 
   const kept = new Set(used);
   const mergeMap = {};
 
   while (kept.size > targetN) {
-    // 找重要性最低的色号（用量/权重最小）
+    // 找重要性最低的色号
     let victim = -1, minScore = Infinity;
     for (const idx of kept) {
       const score = count[idx] / colorWeight(idx);
       if (score < minScore) { minScore = score; victim = idx; }
     }
-    // 找最相似的保留色号
+    // 找最相似的保留色号（亮度差不能超过30，防止白和深合并）
     let target = -1, bestDist = Infinity;
+    const victimL = PALETTE[victim].lab[0];
     for (const idx of kept) {
       if (idx === victim) continue;
       const p1 = PALETTE[victim], p2 = PALETTE[idx];
       const dL = p1.lab[0] - p2.lab[0];
+      // 亮度差超过30，跳过（防止白色和深色合并）
+      if (Math.abs(dL) > 30) continue;
       const dA = p1.lab[1] - p2.lab[1];
       const dB = p1.lab[2] - p2.lab[2];
       const dist = dL * dL + dA * dA + dB * dB;
       if (dist < bestDist) { bestDist = dist; target = idx; }
+    }
+    // 如果找不到亮度接近的，放宽约束找最相似的
+    if (target === -1) {
+      for (const idx of kept) {
+        if (idx === victim) continue;
+        const p1 = PALETTE[victim], p2 = PALETTE[idx];
+        const dL = p1.lab[0] - p2.lab[0];
+        const dA = p1.lab[1] - p2.lab[1];
+        const dB = p1.lab[2] - p2.lab[2];
+        const dist = dL * dL + dA * dA + dB * dB;
+        if (dist < bestDist) { bestDist = dist; target = idx; }
+      }
     }
     if (target === -1) break;
     mergeMap[victim] = target;
@@ -512,7 +549,7 @@ let showLabels = true;
 let sampleMode = 'dominant'; // average | dominant，卡通图默认主导色
 let useDither = false;
 let useDespeckle = true;
-let useEdgeEnhance = true; // 轮廓增强
+let useEdgeEnhance = false; // 轮廓增强默认关闭，容易过度加深
 
 function getOptions() {
   return {
