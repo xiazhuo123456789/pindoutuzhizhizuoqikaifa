@@ -197,10 +197,9 @@ function sampleDominant(img, gridSize, scale = 4) {
 
 /**
  * 先统计图纸中实际用到的色号，再按 Lab 相似度贪心合并到 targetN 色
- * 比 K-Means 更准确：不会产生灰色的聚类中心，用量大的颜色优先保留
+ * 改进：深色和高饱和度色权重更高（通常是轮廓色和主角色），不容易被合并
  */
 function mergeToNColors(grid, targetN) {
-  // 统计每个色号的使用次数
   const count = {};
   for (const idx of grid) {
     if (idx === null) continue;
@@ -209,17 +208,26 @@ function mergeToNColors(grid, targetN) {
   const used = Object.keys(count).map(Number);
   if (used.length <= targetN) return { grid, allowedIndices: used };
 
-  // 贪心合并：每次把用量最少的色号合并到最相似且用量更多的色号
+  // 颜色重要性权重：深色 + 高饱和度 = 更重要（轮廓色、主角色）
+  function colorWeight(idx) {
+    const p = PALETTE[idx];
+    const L = p.lab[0], a = p.lab[1], b = p.lab[2];
+    const darkness = (100 - L) / 100;
+    const saturation = Math.sqrt(a * a + b * b) / 100;
+    return 1 + darkness * 2.5 + saturation * 1.5;
+  }
+
   const kept = new Set(used);
-  const mergeMap = {}; // 被合并的色号 -> 保留的色号
+  const mergeMap = {};
 
   while (kept.size > targetN) {
-    // 找到用量最少的色号
-    let victim = -1, minCount = Infinity;
+    // 找重要性最低的色号（用量/权重最小）
+    let victim = -1, minScore = Infinity;
     for (const idx of kept) {
-      if (count[idx] < minCount) { minCount = count[idx]; victim = idx; }
+      const score = count[idx] / colorWeight(idx);
+      if (score < minScore) { minScore = score; victim = idx; }
     }
-    // 找到与 victim 最相似的保留色号（且用量更多）
+    // 找最相似的保留色号
     let target = -1, bestDist = Infinity;
     for (const idx of kept) {
       if (idx === victim) continue;
@@ -236,7 +244,6 @@ function mergeToNColors(grid, targetN) {
     kept.delete(victim);
   }
 
-  // 应用映射
   const newGrid = grid.map(idx => idx === null ? null : (mergeMap[idx] || idx));
   return { grid: newGrid, allowedIndices: Array.from(kept) };
 }
@@ -327,10 +334,50 @@ function removeSpeckles(grid, gridSize) {
   return result;
 }
 
+// ========== 轮廓增强 ==========
+
+/**
+ * 轮廓增强：浅色被深色包围时，用更深的邻居替换，让轮廓更清晰
+ * 特别适合小尺寸图纸，避免轮廓线被平均掉
+ */
+function enhanceEdges(grid, gridSize) {
+  const result = grid.slice();
+  for (let y = 0; y < gridSize; y++) {
+    for (let x = 0; x < gridSize; x++) {
+      const idx = y * gridSize + x;
+      if (result[idx] === null) continue;
+      const curL = PALETTE[result[idx]].lab[0];
+      if (curL < 50) continue; // 已经是深色，跳过
+
+      // 收集四邻域的深色邻居
+      const darkNeighbors = [];
+      const dirs = [[-1,0],[1,0],[0,-1],[0,1]];
+      for (const [dy, dx] of dirs) {
+        const ny = y + dy, nx = x + dx;
+        if (ny < 0 || ny >= gridSize || nx < 0 || nx >= gridSize) continue;
+        const nidx = ny * gridSize + nx;
+        if (result[nidx] === null) continue;
+        const nL = PALETTE[result[nidx]].lab[0];
+        if (nL < curL - 20) darkNeighbors.push(result[nidx]);
+      }
+
+      // 有2个以上深色邻居，说明这是轮廓边缘的浅色点，用最深的邻居替换
+      if (darkNeighbors.length >= 2) {
+        let darkest = darkNeighbors[0], minL = PALETTE[darkest].lab[0];
+        for (const n of darkNeighbors) {
+          if (PALETTE[n].lab[0] < minL) { minL = PALETTE[n].lab[0]; darkest = n; }
+        }
+        result[idx] = darkest;
+      }
+    }
+  }
+  return result;
+}
+
 // ========== 主处理流程 ==========
 
 function processImage(img, opts) {
-  const { gridSize, sampleMode, colorLimit, useDither, useDespeckle } = opts;
+  const { gridSize, sampleMode, colorLimit, useDither, useDespeckle, useEdgeEnhance } = opts;
 
   matchCache.clear();
 
@@ -358,6 +405,11 @@ function processImage(img, opts) {
   // 4. 去孤立杂点
   if (useDespeckle) {
     grid = removeSpeckles(grid, gridSize);
+  }
+
+  // 5. 轮廓增强
+  if (useEdgeEnhance) {
+    grid = enhanceEdges(grid, gridSize);
   }
 
   return grid;
@@ -457,9 +509,10 @@ let img = null;
 let zoom = 100;
 let showGrid = true;
 let showLabels = true;
-let sampleMode = 'average'; // average | dominant
+let sampleMode = 'dominant'; // average | dominant，卡通图默认主导色
 let useDither = false;
 let useDespeckle = true;
+let useEdgeEnhance = true; // 轮廓增强
 
 function getOptions() {
   return {
@@ -468,6 +521,7 @@ function getOptions() {
     colorLimit: +$('#paletteRange').value,
     useDither,
     useDespeckle,
+    useEdgeEnhance,
     showGrid,
     showLabels
   };
