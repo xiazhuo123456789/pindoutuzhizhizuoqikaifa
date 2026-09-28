@@ -19,6 +19,7 @@ Page({
     totalBeads: 0,
     canvasDisplaySize: 320,
     canvasRenderSize: 640,
+    currentGrid: [],
     isProcessing: false
   },
 
@@ -114,7 +115,7 @@ Page({
     const sx = (imgWidth - side) / 2;
     const sy = (imgHeight - side) / 2;
 
-    ctx.clearRect(0, 0, 1200, 1200);
+    ctx.clearRect(0, 0, 3000, 3500);
     ctx.drawImage(imagePath, sx, sy, side, side, 0, 0, workSize, workSize);
 
     ctx.draw(false, () => {
@@ -158,6 +159,7 @@ Page({
             hasResult: true,
             materialList,
             totalBeads: total,
+            currentGrid: grid,
             isProcessing: false
           });
         },
@@ -170,30 +172,72 @@ Page({
     });
   },
 
-  // 渲染图纸到canvas
+  // 计算浅色背景（颜色和白色混合）
+  getLightColor(rgb, ratio) {
+    const r = Math.round(rgb[0] * ratio + 255 * (1 - ratio));
+    const g = Math.round(rgb[1] * ratio + 255 * (1 - ratio));
+    const b = Math.round(rgb[2] * ratio + 255 * (1 - ratio));
+    return `rgb(${r},${g},${b})`;
+  },
+
+  // 渲染图纸到canvas（带行列坐标）
   renderToCanvas(grid, gridSize) {
     const { canvasRenderSize, showGrid, showLabels } = this.data;
     const ctx = wx.createCanvasContext('beadCanvas');
-    const cellSize = canvasRenderSize / gridSize;
 
-    // 清空
+    // 坐标区域大小（固定）
+    const coordSize = Math.max(36, Math.floor(canvasRenderSize * 0.07));
+    // 图纸区域大小
+    const patternSize = canvasRenderSize - coordSize;
+    const cellSize = patternSize / gridSize;
+
+    // 清空 + 背景
     ctx.clearRect(0, 0, canvasRenderSize, canvasRenderSize);
-    ctx.setFillStyle('#FAF8F2');
+    ctx.setFillStyle('#FFFFFF');
     ctx.fillRect(0, 0, canvasRenderSize, canvasRenderSize);
 
-    // 1. 填色块
+    // ===== 1. 顶部列号 =====
+    ctx.setFillStyle('#F0F0F0');
+    ctx.fillRect(coordSize, 0, patternSize, coordSize);
+    ctx.setFontSize(Math.max(9, Math.floor(coordSize * 0.38)));
+    ctx.setTextAlign('center');
+    ctx.setTextBaseline('middle');
+    ctx.setFillStyle('#333333');
+    for (let x = 0; x < gridSize; x++) {
+      ctx.fillText(String(x + 1), coordSize + x * cellSize + cellSize / 2, coordSize / 2);
+    }
+
+    // ===== 2. 左侧行号 =====
+    ctx.setFillStyle('#F0F0F0');
+    ctx.fillRect(0, coordSize, coordSize, patternSize);
+    for (let y = 0; y < gridSize; y++) {
+      ctx.fillText(String(y + 1), coordSize / 2, coordSize + y * cellSize + cellSize / 2);
+    }
+
+    // ===== 3. 填色块（浅色背景模式） =====
     for (let y = 0; y < gridSize; y++) {
       for (let x = 0; x < gridSize; x++) {
         const idx = y * gridSize + x;
-        if (grid[idx] === null) continue;
-        ctx.setFillStyle(PALETTE[grid[idx]].hex);
-        ctx.fillRect(x * cellSize, y * cellSize, cellSize, cellSize);
+        if (grid[idx] === null) {
+          ctx.setFillStyle('#FAFAFA');
+        } else {
+          const color = PALETTE[grid[idx]];
+          const [r, g, b] = color.rgb;
+          const brightness = r * 0.299 + g * 0.587 + b * 0.114;
+          // 深色用原色，浅色用和白色混合后的浅色
+          if (brightness < 100) {
+            ctx.setFillStyle(color.hex);
+          } else {
+            ctx.setFillStyle(this.getLightColor(color.rgb, 0.35));
+          }
+        }
+        ctx.fillRect(coordSize + x * cellSize, coordSize + y * cellSize, cellSize, cellSize);
       }
     }
 
-    // 2. 色号标注
-    if (showLabels && cellSize >= 16) {
-      const fontSize = Math.max(8, Math.floor(cellSize * 0.32));
+    // ===== 4. 色号标注 =====
+    if (showLabels) {
+      const fontSize = Math.max(7, Math.floor(cellSize * 0.3));
       ctx.setFontSize(fontSize);
       ctx.setTextAlign('center');
       ctx.setTextBaseline('middle');
@@ -204,38 +248,41 @@ Page({
           const color = PALETTE[grid[idx]];
           const [r, g, b] = color.rgb;
           const brightness = r * 0.299 + g * 0.587 + b * 0.114;
-          ctx.setFillStyle(brightness > 140 ? 'rgba(0,0,0,0.75)' : 'rgba(255,255,255,0.9)');
-          ctx.fillText(color.code, x * cellSize + cellSize / 2, y * cellSize + cellSize / 2);
+          // 深色背景白字，浅色背景黑字
+          ctx.setFillStyle(brightness < 100 ? '#FFFFFF' : '#333333');
+          ctx.fillText(color.code, coordSize + x * cellSize + cellSize / 2, coordSize + y * cellSize + cellSize / 2);
         }
       }
     }
 
-    // 3. 网格线
+    // ===== 5. 网格线 =====
     if (showGrid) {
       // 细网格线
-      ctx.setStrokeStyle('rgba(32,34,31,0.15)');
-      ctx.setLineWidth(1);
+      ctx.setStrokeStyle('rgba(0,0,0,0.12)');
+      ctx.setLineWidth(0.8);
       for (let i = 0; i <= gridSize; i++) {
+        const pos = coordSize + i * cellSize;
         ctx.beginPath();
-        ctx.moveTo(i * cellSize, 0);
-        ctx.lineTo(i * cellSize, canvasRenderSize);
+        ctx.moveTo(pos, coordSize);
+        ctx.lineTo(pos, canvasRenderSize);
         ctx.stroke();
         ctx.beginPath();
-        ctx.moveTo(0, i * cellSize);
-        ctx.lineTo(canvasRenderSize, i * cellSize);
+        ctx.moveTo(coordSize, pos);
+        ctx.lineTo(canvasRenderSize, pos);
         ctx.stroke();
       }
-      // 每5格加粗定位线
-      ctx.setStrokeStyle('rgba(32,34,31,0.4)');
-      ctx.setLineWidth(2.5);
+      // 每5格红色加粗定位线
+      ctx.setStrokeStyle('#E74C3C');
+      ctx.setLineWidth(2);
       for (let i = 0; i <= gridSize; i += 5) {
+        const pos = coordSize + i * cellSize;
         ctx.beginPath();
-        ctx.moveTo(i * cellSize, 0);
-        ctx.lineTo(i * cellSize, canvasRenderSize);
+        ctx.moveTo(pos, coordSize);
+        ctx.lineTo(pos, canvasRenderSize);
         ctx.stroke();
         ctx.beginPath();
-        ctx.moveTo(0, i * cellSize);
-        ctx.lineTo(canvasRenderSize, i * cellSize);
+        ctx.moveTo(coordSize, pos);
+        ctx.lineTo(canvasRenderSize, pos);
         ctx.stroke();
       }
     }
@@ -243,44 +290,214 @@ Page({
     ctx.draw();
   },
 
-  // 导出图片到相册
+  // 导出图片到相册（完整大图：坐标+图纸+材料清单+像素总数）
   exportImage() {
     if (!this.data.hasResult) return;
 
-    wx.showLoading({ title: '保存中...' });
+    wx.showLoading({ title: '生成图纸中...' });
 
-    wx.canvasToTempFilePath({
-      canvasId: 'beadCanvas',
-      success: (res) => {
-        wx.saveImageToPhotosAlbum({
-          filePath: res.tempFilePath,
-          success: () => {
-            wx.hideLoading();
-            wx.showToast({ title: '已保存到相册', icon: 'success' });
-          },
-          fail: (err) => {
-            wx.hideLoading();
-            if (err.errMsg.indexOf('auth deny') > -1) {
-              wx.showModal({
-                title: '需要相册权限',
-                content: '请在设置中开启相册权限',
-                confirmText: '去设置',
-                success: (modalRes) => {
-                  if (modalRes.confirm) {
-                    wx.openSetting();
-                  }
-                }
-              });
-            } else {
-              wx.showToast({ title: '保存失败', icon: 'none' });
-            }
+    const { gridSize, materialList, totalBeads } = this.data;
+    const ctx = wx.createCanvasContext('hiddenCanvas');
+
+    // 导出尺寸计算
+    const coordSize = 50;
+    const maxWidth = 2900;
+    const cellSize = Math.max(10, Math.floor((maxWidth - coordSize) / gridSize));
+    const patternWidth = gridSize * cellSize;
+    const patternHeight = gridSize * cellSize;
+    const materialHeight = 220;
+    const totalWidth = coordSize + patternWidth;
+    const totalHeight = coordSize + patternHeight + materialHeight;
+
+    // 清空
+    ctx.clearRect(0, 0, 3000, 3500);
+    ctx.setFillStyle('#FFFFFF');
+    ctx.fillRect(0, 0, totalWidth, totalHeight);
+
+    // ===== 1. 顶部列号 =====
+    ctx.setFillStyle('#F0F0F0');
+    ctx.fillRect(coordSize, 0, patternWidth, coordSize);
+    ctx.setFontSize(Math.max(12, Math.floor(coordSize * 0.4)));
+    ctx.setTextAlign('center');
+    ctx.setTextBaseline('middle');
+    ctx.setFillStyle('#333333');
+    for (let x = 0; x < gridSize; x++) {
+      ctx.fillText(String(x + 1), coordSize + x * cellSize + cellSize / 2, coordSize / 2);
+    }
+
+    // ===== 2. 左侧行号 =====
+    ctx.setFillStyle('#F0F0F0');
+    ctx.fillRect(0, coordSize, coordSize, patternHeight);
+    for (let y = 0; y < gridSize; y++) {
+      ctx.fillText(String(y + 1), coordSize / 2, coordSize + y * cellSize + cellSize / 2);
+    }
+
+    // ===== 3. 填色块（浅色背景模式） =====
+    // 先获取grid数据（从this.data里没有存grid，需要重新处理）
+    // 这里用一个简化方式：从渲染好的beadCanvas获取？不行，尺寸不一样
+    // 所以需要把grid存到data里
+    const grid = this.data.currentGrid || [];
+    for (let y = 0; y < gridSize; y++) {
+      for (let x = 0; x < gridSize; x++) {
+        const idx = y * gridSize + x;
+        if (!grid[idx] && grid[idx] !== 0) {
+          ctx.setFillStyle('#FAFAFA');
+        } else {
+          const color = PALETTE[grid[idx]];
+          if (!color) continue;
+          const [r, g, b] = color.rgb;
+          const brightness = r * 0.299 + g * 0.587 + b * 0.114;
+          if (brightness < 100) {
+            ctx.setFillStyle(color.hex);
+          } else {
+            ctx.setFillStyle(this.getLightColor(color.rgb, 0.35));
           }
-        });
-      },
-      fail: () => {
-        wx.hideLoading();
-        wx.showToast({ title: '导出失败', icon: 'none' });
+        }
+        ctx.fillRect(coordSize + x * cellSize, coordSize + y * cellSize, cellSize, cellSize);
       }
+    }
+
+    // ===== 4. 色号标注 =====
+    const fontSize = Math.max(8, Math.floor(cellSize * 0.3));
+    ctx.setFontSize(fontSize);
+    ctx.setTextAlign('center');
+    ctx.setTextBaseline('middle');
+    for (let y = 0; y < gridSize; y++) {
+      for (let x = 0; x < gridSize; x++) {
+        const idx = y * gridSize + x;
+        if (!grid[idx] && grid[idx] !== 0) continue;
+        const color = PALETTE[grid[idx]];
+        if (!color) continue;
+        const [r, g, b] = color.rgb;
+        const brightness = r * 0.299 + g * 0.587 + b * 0.114;
+        ctx.setFillStyle(brightness < 100 ? '#FFFFFF' : '#333333');
+        ctx.fillText(color.code, coordSize + x * cellSize + cellSize / 2, coordSize + y * cellSize + cellSize / 2);
+      }
+    }
+
+    // ===== 5. 网格线 =====
+    ctx.setStrokeStyle('rgba(0,0,0,0.12)');
+    ctx.setLineWidth(1);
+    for (let i = 0; i <= gridSize; i++) {
+      const pos = coordSize + i * cellSize;
+      ctx.beginPath();
+      ctx.moveTo(pos, coordSize);
+      ctx.lineTo(pos, coordSize + patternHeight);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(coordSize, pos);
+      ctx.lineTo(coordSize + patternWidth, pos);
+      ctx.stroke();
+    }
+    // 每5格红色加粗定位线
+    ctx.setStrokeStyle('#E74C3C');
+    ctx.setLineWidth(2.5);
+    for (let i = 0; i <= gridSize; i += 5) {
+      const pos = coordSize + i * cellSize;
+      ctx.beginPath();
+      ctx.moveTo(pos, coordSize);
+      ctx.lineTo(pos, coordSize + patternHeight);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(coordSize, pos);
+      ctx.lineTo(coordSize + patternWidth, pos);
+      ctx.stroke();
+    }
+
+    // ===== 6. 底部材料清单 =====
+    const materialY = coordSize + patternHeight + 30;
+    ctx.setFillStyle('#20221F');
+    ctx.setFontSize(32);
+    ctx.setTextAlign('left');
+    ctx.setTextBaseline('top');
+    ctx.fillText('物料清单', 30, materialY);
+
+    // 彩色方块+色号+数量
+    const itemSize = 60;
+    const itemGap = 20;
+    const itemsPerRow = Math.floor((totalWidth - 60) / (itemSize + itemGap));
+    materialList.forEach((item, i) => {
+      const row = Math.floor(i / itemsPerRow);
+      const col = i % itemsPerRow;
+      const ix = 30 + col * (itemSize + itemGap);
+      const iy = materialY + 55 + row * 90;
+
+      // 彩色方块
+      ctx.setFillStyle(item.hex);
+      ctx.fillRect(ix, iy, itemSize, itemSize);
+      // 色号文字
+      const [r, g, b] = this.hexToRgb(item.hex);
+      const brightness = r * 0.299 + g * 0.587 + b * 0.114;
+      ctx.setFillStyle(brightness < 120 ? '#FFFFFF' : '#20221F');
+      ctx.setFontSize(20);
+      ctx.setTextAlign('center');
+      ctx.setTextBaseline('middle');
+      ctx.fillText(item.code, ix + itemSize / 2, iy + itemSize / 2);
+      // 数量
+      ctx.setFillStyle('#666666');
+      ctx.setFontSize(18);
+      ctx.setTextAlign('center');
+      ctx.setTextBaseline('top');
+      ctx.fillText('x' + item.qty, ix + itemSize / 2, iy + itemSize + 6);
     });
+
+    // ===== 7. 像素总数（右下角） =====
+    ctx.setFillStyle('#999999');
+    ctx.setFontSize(24);
+    ctx.setTextAlign('right');
+    ctx.setTextBaseline('bottom');
+    ctx.fillText('像素总数量: ' + (gridSize * gridSize), totalWidth - 30, totalHeight - 20);
+
+    ctx.draw(false, () => {
+      wx.canvasToTempFilePath({
+        canvasId: 'hiddenCanvas',
+        x: 0,
+        y: 0,
+        width: totalWidth,
+        height: totalHeight,
+        destWidth: totalWidth,
+        destHeight: totalHeight,
+        success: (res) => {
+          wx.saveImageToPhotosAlbum({
+            filePath: res.tempFilePath,
+            success: () => {
+              wx.hideLoading();
+              wx.showToast({ title: '已保存到相册', icon: 'success' });
+            },
+            fail: (err) => {
+              wx.hideLoading();
+              if (err.errMsg.indexOf('auth deny') > -1) {
+                wx.showModal({
+                  title: '需要相册权限',
+                  content: '请在设置中开启相册权限',
+                  confirmText: '去设置',
+                  success: (modalRes) => {
+                    if (modalRes.confirm) {
+                      wx.openSetting();
+                    }
+                  }
+                });
+              } else {
+                wx.showToast({ title: '保存失败', icon: 'none' });
+              }
+            }
+          });
+        },
+        fail: () => {
+          wx.hideLoading();
+          wx.showToast({ title: '导出失败', icon: 'none' });
+        }
+      });
+    });
+  },
+
+  // hex转rgb
+  hexToRgb(hex) {
+    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+    return result ? [
+      parseInt(result[1], 16),
+      parseInt(result[2], 16),
+      parseInt(result[3], 16)
+    ] : [200, 200, 200];
   }
 });

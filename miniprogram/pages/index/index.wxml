@@ -58,7 +58,7 @@
             <text>图纸尺寸</text>
             <text class="field-value">{{gridSize}} × {{gridSize}}</text>
           </view>
-          <slider class="slider" min="16" max="100" value="{{gridSize}}" step="1" bindchanging="onSizeChange" bindchange="onSizeChange" activeColor="#8B9A2B" backgroundColor="#E0DCD0" block-size="20"/>
+          <slider class="slider" min="16" max="150" value="{{gridSize}}" step="1" bindchanging="onSizeChange" bindchange="onSizeChange" activeColor="#8B9A2B" backgroundColor="#E0DCD0" block-size="20"/>
         </view>
 
         <!-- 珠子规格 -->

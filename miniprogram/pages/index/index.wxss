@@ -513,6 +513,6 @@
   position: fixed;
   left: -9999rpx;
   top: -9999rpx;
-  width: 1200px;
-  height: 1200px;
+  width: 3000px;
+  height: 3500px;
 }
