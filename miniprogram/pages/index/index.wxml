@@ -1,83 +1,144 @@
 <view class="container">
-  <!-- 标题区 -->
-  <view class="header">
-    <view class="brand">
-      <text class="brand-mark">豆</text>
-      <text class="brand-name">豆趣</text>
-      <text class="brand-sub">BEAD FUN</text>
-    </view>
+  <!-- 顶部标题区 -->
+  <view class="hero">
+    <text class="hero-eyebrow">PIXEL BEAD STUDIO</text>
     <view class="hero-title">
-      <text class="hero-main">把喜欢的照片，</text>
-      <text class="hero-em">变成一幅拼豆图纸</text>
+      <text class="hero-line1">把喜欢的照片，</text>
+      <text class="hero-line2">变成一幅拼豆图纸</text>
     </view>
-  </view>
-
-  <!-- 上传区 -->
-  <view class="upload-section" bindtap="chooseImage">
-    <view class="upload-icon">↑</view>
-    <text class="upload-text" wx:if="{{!imagePath}}">点击上传照片</text>
-    <image wx:if="{{imagePath}}" src="{{imagePath}}" class="upload-thumb" mode="aspectFill"></image>
-    <text class="upload-hint">支持 JPG / PNG</text>
-  </view>
-
-  <!-- 控制面板 -->
-  <view class="control-panel" wx:if="{{imagePath}}">
-    <view class="panel-title">
-      <text class="panel-num">01</text>
-      <text>图纸设置</text>
-    </view>
-
-    <!-- 尺寸 -->
-    <view class="field">
-      <view class="field-label">
-        <text>图纸尺寸</text>
-        <text class="field-value">{{gridSize}} × {{gridSize}}</text>
+    <text class="hero-desc">上传图片，调好尺寸与色彩，剩下的交给我。</text>
+    <view class="hero-stats">
+      <view class="stat-item">
+        <text class="stat-num">12,480</text>
+        <text class="stat-label">今日生成图纸</text>
       </view>
-      <slider class="slider" min="16" max="100" value="{{gridSize}}" step="1" bindchanging="onSizeChange" bindchange="onSizeChange" activeColor="#C8F04A" backgroundColor="#E0DCD0" block-size="20"/>
-    </view>
-
-    <!-- 色数 -->
-    <view class="field">
-      <view class="field-label">
-        <text>使用色号</text>
-        <text class="field-value">{{colorLimit >= 221 ? '全221色' : colorLimit + ' 色'}}</text>
-      </view>
-      <slider class="slider" min="8" max="221" value="{{colorLimit}}" step="1" bindchanging="onColorChange" bindchange="onColorChange" activeColor="#C8F04A" backgroundColor="#E0DCD0" block-size="20"/>
-    </view>
-
-    <!-- 采样方式 -->
-    <view class="field">
-      <view class="field-label"><text>采样方式</text></view>
-      <view class="toggle-group">
-        <view class="toggle-btn {{sampleMode === 'average' ? 'active' : ''}}" data-mode="average" bindtap="onSampleModeChange">平均色</view>
-        <view class="toggle-btn {{sampleMode === 'dominant' ? 'active' : ''}}" data-mode="dominant" bindtap="onSampleModeChange">主导色</view>
-      </view>
-    </view>
-
-    <!-- 开关 -->
-    <view class="field">
-      <view class="field-label"><text>高级选项</text></view>
-      <view class="toggle-group">
-        <view class="toggle-btn {{useDither ? 'active' : ''}}" bindtap="onDitherToggle">抖动</view>
-        <view class="toggle-btn {{showGrid ? 'active' : ''}}" bindtap="onGridToggle">网格</view>
-        <view class="toggle-btn {{showLabels ? 'active' : ''}}" bindtap="onLabelToggle">色号</view>
+      <view class="stat-divider"></view>
+      <view class="stat-item">
+        <text class="stat-num">4.9</text>
+        <text class="stat-label">用户评分</text>
       </view>
     </view>
   </view>
 
-  <!-- 预览区 -->
-  <view class="preview-section" wx:if="{{imagePath}}">
-    <view class="preview-header">
-      <view class="preview-title">
-        <view class="live-dot"></view>
-        <text>实时预览</text>
+  <!-- 主体内容区 -->
+  <view class="main-content">
+    <!-- 左侧：导入图片 + 图纸设置 -->
+    <view class="left-panel">
+      <!-- 01 导入图片 -->
+      <view class="card">
+        <view class="card-header">
+          <text class="card-num">01</text>
+          <text class="card-title">导入图片</text>
+        </view>
+        <view class="upload-area" bindtap="chooseImage">
+          <block wx:if="{{!imagePath}}">
+            <view class="upload-icon">↑</view>
+            <text class="upload-text">点击上传照片</text>
+            <text class="upload-hint">支持 JPG / PNG，最大 10MB</text>
+          </block>
+          <block wx:else>
+            <image src="{{imagePath}}" class="upload-thumb" mode="aspectFill"></image>
+            <view class="upload-replace">
+              <text>点击更换图片</text>
+            </view>
+          </block>
+        </view>
+      </view>
+
+      <!-- 02 图纸设置 -->
+      <view class="card">
+        <view class="card-header">
+          <text class="card-num">02</text>
+          <text class="card-title">图纸设置</text>
+        </view>
+
+        <!-- 图纸尺寸 -->
+        <view class="field">
+          <view class="field-label">
+            <text>图纸尺寸</text>
+            <text class="field-value">{{gridSize}} × {{gridSize}}</text>
+          </view>
+          <slider class="slider" min="16" max="100" value="{{gridSize}}" step="1" bindchanging="onSizeChange" bindchange="onSizeChange" activeColor="#8B9A2B" backgroundColor="#E0DCD0" block-size="20"/>
+        </view>
+
+        <!-- 珠子规格 -->
+        <view class="field">
+          <view class="field-label">
+            <text>珠子规格</text>
+          </view>
+          <view class="select-box">
+            <text>2.6 mm · 标准</text>
+            <text class="select-arrow">▾</text>
+          </view>
+        </view>
+
+        <!-- 使用色号 -->
+        <view class="field">
+          <view class="field-label">
+            <text>使用色号</text>
+            <text class="field-value">{{colorLimit >= 221 ? '全221色' : colorLimit + ' 色'}}</text>
+          </view>
+          <slider class="slider" min="8" max="221" value="{{colorLimit}}" step="1" bindchanging="onColorChange" bindchange="onColorChange" activeColor="#8B9A2B" backgroundColor="#E0DCD0" block-size="20"/>
+        </view>
+
+        <!-- 采样方式 -->
+        <view class="field">
+          <view class="field-label"><text>采样方式</text></view>
+          <view class="toggle-group">
+            <view class="toggle-btn {{sampleMode === 'average' ? 'active' : ''}}" data-mode="average" bindtap="onSampleModeChange">平均色</view>
+            <view class="toggle-btn {{sampleMode === 'dominant' ? 'active' : ''}}" data-mode="dominant" bindtap="onSampleModeChange">主导色</view>
+          </view>
+        </view>
+
+        <!-- 高级选项 -->
+        <view class="field">
+          <view class="field-label"><text>高级选项</text></view>
+          <view class="toggle-group">
+            <view class="toggle-btn {{useDither ? 'active' : ''}}" bindtap="onDitherToggle">抖动</view>
+            <view class="toggle-btn {{showGrid ? 'active' : ''}}" bindtap="onGridToggle">网格</view>
+            <view class="toggle-btn {{showLabels ? 'active' : ''}}" bindtap="onLabelToggle">色号</view>
+          </view>
+        </view>
+
+        <!-- 色板预览 -->
+        <view class="field" wx:if="{{materialList.length > 0}}">
+          <view class="field-label"><text>当前色板</text></view>
+          <view class="palette-preview">
+            <view class="palette-dot" wx:for="{{materialList}}" wx:key="idx" style="background:{{item.hex}};"></view>
+          </view>
+        </view>
       </view>
     </view>
-    <view class="canvas-wrap">
-      <canvas canvas-id="beadCanvas" class="bead-canvas" style="width:{{canvasDisplaySize}}px;height:{{canvasDisplaySize}}px;"></canvas>
-      <view class="canvas-empty" wx:if="{{!hasResult}}">
-        <text class="empty-icon">✦</text>
-        <text>调整参数后自动生成</text>
+
+    <!-- 右侧：实时预览 -->
+    <view class="right-panel">
+      <view class="card preview-card">
+        <view class="preview-header">
+          <view class="preview-title">
+            <view class="live-dot"></view>
+            <text>实时预览</text>
+          </view>
+          <view class="preview-actions">
+            <view class="action-btn {{showGrid ? 'on' : ''}}" bindtap="onGridToggle">网格</view>
+            <view class="action-btn {{showLabels ? 'on' : ''}}" bindtap="onLabelToggle">色号</view>
+          </view>
+        </view>
+        <view class="canvas-wrap">
+          <view class="canvas-container" style="width:{{canvasDisplaySize}}px;height:{{canvasDisplaySize}}px;">
+            <canvas canvas-id="beadCanvas" class="bead-canvas" style="width:{{canvasRenderSize}}px;height:{{canvasRenderSize}}px;transform:scale(0.5);transform-origin:top left;"></canvas>
+          </view>
+          <view class="canvas-empty" wx:if="{{!hasResult}}">
+            <view class="empty-icon-box">
+              <text class="empty-icon">✦</text>
+            </view>
+            <text class="empty-title">你的图纸会出现在这里</text>
+            <text class="empty-desc">上传一张照片开始创作</text>
+          </view>
+        </view>
+        <view class="preview-tip" wx:if="{{hasResult}}">
+          <text class="tip-dot">✦</text>
+          <text>建议选择主体清晰、光线充足的照片</text>
+        </view>
       </view>
     </view>
   </view>
@@ -94,7 +155,7 @@
         <text class="total-label">颗珠子</text>
       </view>
     </view>
-    <scroll-view class="material-list" scroll-y>
+    <view class="material-list">
       <view class="material-item" wx:for="{{materialList}}" wx:key="idx">
         <view class="material-color" style="background:{{item.hex}};"></view>
         <view class="material-meta">
@@ -103,11 +164,11 @@
         </view>
         <text class="material-qty">{{item.qty}}</text>
       </view>
-    </scroll-view>
+    </view>
   </view>
 
-  <!-- 导出按钮 -->
-  <view class="footer" wx:if="{{imagePath}}">
+  <!-- 底部导出按钮 -->
+  <view class="footer">
     <button class="export-btn" bindtap="exportImage" disabled="{{!hasResult}}">
       <text class="export-icon">↓</text>
       <text>保存图纸到相册</text>

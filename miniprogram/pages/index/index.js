@@ -18,21 +18,27 @@ Page({
     materialList: [],
     totalBeads: 0,
     canvasDisplaySize: 320,
+    canvasRenderSize: 640,
     isProcessing: false
   },
 
   onLoad() {
-    // 计算canvas显示尺寸（屏幕宽度的85%）
+    // 计算canvas显示尺寸（屏幕宽度的90%）
     const sysInfo = wx.getSystemInfoSync();
-    const displaySize = Math.floor(sysInfo.windowWidth * 0.85);
-    this.setData({ canvasDisplaySize: displaySize });
+    const displaySize = Math.floor(sysInfo.windowWidth * 0.9);
+    // 实际渲染尺寸用2倍，保证清晰度
+    const renderSize = displaySize * 2;
+    this.setData({
+      canvasDisplaySize: displaySize,
+      canvasRenderSize: renderSize
+    });
   },
 
   // 选择图片
   chooseImage() {
     wx.chooseImage({
       count: 1,
-      sizeType: ['compressed'],
+      sizeType: ['original', 'compressed'],
       sourceType: ['album', 'camera'],
       success: (res) => {
         const tempPath = res.tempFilePaths[0];
@@ -108,7 +114,7 @@ Page({
     const sx = (imgWidth - side) / 2;
     const sy = (imgHeight - side) / 2;
 
-    ctx.clearRect(0, 0, 800, 800);
+    ctx.clearRect(0, 0, 1200, 1200);
     ctx.drawImage(imagePath, sx, sy, side, side, 0, 0, workSize, workSize);
 
     ctx.draw(false, () => {
@@ -166,14 +172,14 @@ Page({
 
   // 渲染图纸到canvas
   renderToCanvas(grid, gridSize) {
-    const { canvasDisplaySize, showGrid, showLabels } = this.data;
+    const { canvasRenderSize, showGrid, showLabels } = this.data;
     const ctx = wx.createCanvasContext('beadCanvas');
-    const cellSize = canvasDisplaySize / gridSize;
+    const cellSize = canvasRenderSize / gridSize;
 
     // 清空
-    ctx.clearRect(0, 0, canvasDisplaySize, canvasDisplaySize);
+    ctx.clearRect(0, 0, canvasRenderSize, canvasRenderSize);
     ctx.setFillStyle('#FAF8F2');
-    ctx.fillRect(0, 0, canvasDisplaySize, canvasDisplaySize);
+    ctx.fillRect(0, 0, canvasRenderSize, canvasRenderSize);
 
     // 1. 填色块
     for (let y = 0; y < gridSize; y++) {
@@ -186,8 +192,8 @@ Page({
     }
 
     // 2. 色号标注
-    if (showLabels && cellSize >= 12) {
-      const fontSize = Math.max(6, Math.floor(cellSize * 0.35));
+    if (showLabels && cellSize >= 16) {
+      const fontSize = Math.max(8, Math.floor(cellSize * 0.32));
       ctx.setFontSize(fontSize);
       ctx.setTextAlign('center');
       ctx.setTextBaseline('middle');
@@ -208,28 +214,28 @@ Page({
     if (showGrid) {
       // 细网格线
       ctx.setStrokeStyle('rgba(32,34,31,0.15)');
-      ctx.setLineWidth(0.5);
+      ctx.setLineWidth(1);
       for (let i = 0; i <= gridSize; i++) {
         ctx.beginPath();
         ctx.moveTo(i * cellSize, 0);
-        ctx.lineTo(i * cellSize, canvasDisplaySize);
+        ctx.lineTo(i * cellSize, canvasRenderSize);
         ctx.stroke();
         ctx.beginPath();
         ctx.moveTo(0, i * cellSize);
-        ctx.lineTo(canvasDisplaySize, i * cellSize);
+        ctx.lineTo(canvasRenderSize, i * cellSize);
         ctx.stroke();
       }
       // 每5格加粗定位线
       ctx.setStrokeStyle('rgba(32,34,31,0.4)');
-      ctx.setLineWidth(1.5);
+      ctx.setLineWidth(2.5);
       for (let i = 0; i <= gridSize; i += 5) {
         ctx.beginPath();
         ctx.moveTo(i * cellSize, 0);
-        ctx.lineTo(i * cellSize, canvasDisplaySize);
+        ctx.lineTo(i * cellSize, canvasRenderSize);
         ctx.stroke();
         ctx.beginPath();
         ctx.moveTo(0, i * cellSize);
-        ctx.lineTo(canvasDisplaySize, i * cellSize);
+        ctx.lineTo(canvasRenderSize, i * cellSize);
         ctx.stroke();
       }
     }
