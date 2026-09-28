@@ -19,9 +19,11 @@ Page({
     totalBeads: 0,
     canvasDisplaySize: 320,
     canvasRenderSize: 640,
-    currentGrid: [],
     isProcessing: false
   },
+
+  // 用普通变量保存grid数据，不走setData（避免大数据序列化丢失）
+  currentGrid: null,
 
   onLoad() {
     // 计算canvas显示尺寸（屏幕宽度的90%）
@@ -155,11 +157,13 @@ Page({
             hex: PALETTE[item.idx].hex
           }));
 
+          // 保存grid数据到普通变量（不走setData，避免大数据序列化丢失）
+          this.currentGrid = grid;
+
           this.setData({
             hasResult: true,
             materialList,
             totalBeads: total,
-            currentGrid: grid,
             isProcessing: false
           });
         },
@@ -305,7 +309,12 @@ Page({
     const cellSize = Math.max(10, Math.floor((maxWidth - coordSize) / gridSize));
     const patternWidth = gridSize * cellSize;
     const patternHeight = gridSize * cellSize;
-    const materialHeight = 220;
+    // 材料清单高度动态计算
+    const itemSize = 60;
+    const itemGap = 20;
+    const itemsPerRow = Math.floor((coordSize + patternWidth - 60) / (itemSize + itemGap));
+    const materialRows = Math.ceil(materialList.length / Math.max(1, itemsPerRow));
+    const materialHeight = 60 + materialRows * 90 + 40;
     const totalWidth = coordSize + patternWidth;
     const totalHeight = coordSize + patternHeight + materialHeight;
 
@@ -333,24 +342,25 @@ Page({
     }
 
     // ===== 3. 填色块（浅色背景模式） =====
-    // 先获取grid数据（从this.data里没有存grid，需要重新处理）
-    // 这里用一个简化方式：从渲染好的beadCanvas获取？不行，尺寸不一样
-    // 所以需要把grid存到data里
-    const grid = this.data.currentGrid || [];
+    const grid = this.currentGrid || [];
     for (let y = 0; y < gridSize; y++) {
       for (let x = 0; x < gridSize; x++) {
         const idx = y * gridSize + x;
-        if (!grid[idx] && grid[idx] !== 0) {
+        const colorIdx = grid[idx];
+        if (colorIdx === null || colorIdx === undefined || colorIdx < 0) {
           ctx.setFillStyle('#FAFAFA');
         } else {
-          const color = PALETTE[grid[idx]];
-          if (!color) continue;
-          const [r, g, b] = color.rgb;
-          const brightness = r * 0.299 + g * 0.587 + b * 0.114;
-          if (brightness < 100) {
-            ctx.setFillStyle(color.hex);
+          const color = PALETTE[colorIdx];
+          if (color) {
+            const [r, g, b] = color.rgb;
+            const brightness = r * 0.299 + g * 0.587 + b * 0.114;
+            if (brightness < 100) {
+              ctx.setFillStyle(color.hex);
+            } else {
+              ctx.setFillStyle(this.getLightColor(color.rgb, 0.35));
+            }
           } else {
-            ctx.setFillStyle(this.getLightColor(color.rgb, 0.35));
+            ctx.setFillStyle('#FAFAFA');
           }
         }
         ctx.fillRect(coordSize + x * cellSize, coordSize + y * cellSize, cellSize, cellSize);
@@ -365,8 +375,9 @@ Page({
     for (let y = 0; y < gridSize; y++) {
       for (let x = 0; x < gridSize; x++) {
         const idx = y * gridSize + x;
-        if (!grid[idx] && grid[idx] !== 0) continue;
-        const color = PALETTE[grid[idx]];
+        const colorIdx = grid[idx];
+        if (colorIdx === null || colorIdx === undefined || colorIdx < 0) continue;
+        const color = PALETTE[colorIdx];
         if (!color) continue;
         const [r, g, b] = color.rgb;
         const brightness = r * 0.299 + g * 0.587 + b * 0.114;
@@ -413,9 +424,6 @@ Page({
     ctx.fillText('物料清单', 30, materialY);
 
     // 彩色方块+色号+数量
-    const itemSize = 60;
-    const itemGap = 20;
-    const itemsPerRow = Math.floor((totalWidth - 60) / (itemSize + itemGap));
     materialList.forEach((item, i) => {
       const row = Math.floor(i / itemsPerRow);
       const col = i % itemsPerRow;
