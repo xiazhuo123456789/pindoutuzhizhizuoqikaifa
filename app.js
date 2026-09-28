@@ -4,7 +4,7 @@
  * 1. 真实 MARD 221 色板（替换自造色）
  * 2. CIE Lab 空间颜色匹配（替换 RGB 距离）
  * 3. 格内平均色 / 主导色两种像素化（替换单像素取样）
- * 4. K-Means++ 颜色量化（限制用色数时）
+ * 4. 先全色匹配再合并到 N 色（替换 K-Means，避免灰色聚类中心）
  * 5. Floyd-Steinberg 抖动
  * 6. 去孤立杂点
  * 7. PNG 透明区域处理
@@ -70,20 +70,27 @@ const PALETTE = MARD_PALETTE.map(item => {
 
 const matchCache = new Map();
 
-/** 在 Lab 空间找最接近的色号（CIE76 欧氏距离） */
-function nearestColor(rgb) {
-  const key = rgb[0] + '_' + rgb[1] + '_' + rgb[2];
+/** 在 Lab 空间找最接近的色号（CIE76 欧氏距离），支持限定色板子集 */
+function nearestColor(rgb, allowedIndices) {
+  const key = rgb[0] + '_' + rgb[1] + '_' + rgb[2] + (allowedIndices ? '_s' + allowedIndices.length : '');
   if (matchCache.has(key)) return matchCache.get(key);
 
   const [L, a, b] = rgbToLab(rgb[0], rgb[1], rgb[2]);
   let best = 0, bestDist = Infinity;
-  for (let i = 0; i < PALETTE.length; i++) {
-    const p = PALETTE[i];
-    const dL = L - p.lab[0];
-    const dA = a - p.lab[1];
-    const dB = b - p.lab[2];
-    const dist = dL * dL + dA * dA + dB * dB;
-    if (dist < bestDist) { bestDist = dist; best = i; }
+  if (allowedIndices) {
+    for (const i of allowedIndices) {
+      const p = PALETTE[i];
+      const dL = L - p.lab[0], dA = a - p.lab[1], dB = b - p.lab[2];
+      const dist = dL * dL + dA * dA + dB * dB;
+      if (dist < bestDist) { bestDist = dist; best = i; }
+    }
+  } else {
+    for (let i = 0; i < PALETTE.length; i++) {
+      const p = PALETTE[i];
+      const dL = L - p.lab[0], dA = a - p.lab[1], dB = b - p.lab[2];
+      const dist = dL * dL + dA * dA + dB * dB;
+      if (dist < bestDist) { bestDist = dist; best = i; }
+    }
   }
   matchCache.set(key, best);
   return best;
@@ -186,92 +193,52 @@ function sampleDominant(img, gridSize, scale = 4) {
   return result;
 }
 
-// ========== K-Means++ 颜色量化 ==========
+// ========== 颜色合并：先全色匹配再合并到 N 色 ==========
 
 /**
- * 当用户限制颜色数量时，先用 K-Means++ 聚类选出代表色
- * 再把每个像素匹配到最近的聚类中心
+ * 先统计图纸中实际用到的色号，再按 Lab 相似度贪心合并到 targetN 色
+ * 比 K-Means 更准确：不会产生灰色的聚类中心，用量大的颜色优先保留
  */
-function kmeansQuantize(pixels, k, maxIter = 12) {
-  const validPixels = pixels.filter(p => p !== null);
-  if (validPixels.length === 0) return pixels;
+function mergeToNColors(grid, targetN) {
+  // 统计每个色号的使用次数
+  const count = {};
+  for (const idx of grid) {
+    if (idx === null) continue;
+    count[idx] = (count[idx] || 0) + 1;
+  }
+  const used = Object.keys(count).map(Number);
+  if (used.length <= targetN) return { grid, allowedIndices: used };
 
-  // 转 Lab（带缓存）
-  const labCache = {};
-  const labs = validPixels.map(p => {
-    const key = p[0] + '_' + p[1] + '_' + p[2];
-    if (!labCache[key]) labCache[key] = rgbToLab(p[0], p[1], p[2]);
-    return labCache[key];
-  });
+  // 贪心合并：每次把用量最少的色号合并到最相似且用量更多的色号
+  const kept = new Set(used);
+  const mergeMap = {}; // 被合并的色号 -> 保留的色号
 
-  // K-Means++ 初始化
-  const centers = [labs[Math.floor(Math.random() * labs.length)].slice()];
-  while (centers.length < k) {
-    const dists = labs.map(lab => {
-      let minD = Infinity;
-      for (const c of centers) {
-        const d = (lab[0]-c[0])**2 + (lab[1]-c[1])**2 + (lab[2]-c[2])**2;
-        if (d < minD) minD = d;
-      }
-      return minD;
-    });
-    const total = dists.reduce((a, b) => a + b, 0);
-    let r = Math.random() * total;
-    let idx = 0;
-    for (let i = 0; i < dists.length; i++) {
-      r -= dists[i];
-      if (r <= 0) { idx = i; break; }
+  while (kept.size > targetN) {
+    // 找到用量最少的色号
+    let victim = -1, minCount = Infinity;
+    for (const idx of kept) {
+      if (count[idx] < minCount) { minCount = count[idx]; victim = idx; }
     }
-    centers.push(labs[idx].slice());
+    // 找到与 victim 最相似的保留色号（且用量更多）
+    let target = -1, bestDist = Infinity;
+    for (const idx of kept) {
+      if (idx === victim) continue;
+      const p1 = PALETTE[victim], p2 = PALETTE[idx];
+      const dL = p1.lab[0] - p2.lab[0];
+      const dA = p1.lab[1] - p2.lab[1];
+      const dB = p1.lab[2] - p2.lab[2];
+      const dist = dL * dL + dA * dA + dB * dB;
+      if (dist < bestDist) { bestDist = dist; target = idx; }
+    }
+    if (target === -1) break;
+    mergeMap[victim] = target;
+    count[target] += count[victim];
+    kept.delete(victim);
   }
 
-  // 迭代聚类
-  const assignments = new Array(labs.length);
-  for (let iter = 0; iter < maxIter; iter++) {
-    let changed = false;
-    for (let i = 0; i < labs.length; i++) {
-      let best = 0, bestD = Infinity;
-      for (let c = 0; c < centers.length; c++) {
-        const d = (labs[i][0]-centers[c][0])**2 + (labs[i][1]-centers[c][1])**2 + (labs[i][2]-centers[c][2])**2;
-        if (d < bestD) { bestD = d; best = c; }
-      }
-      if (assignments[i] !== best) { assignments[i] = best; changed = true; }
-    }
-    // 更新中心
-    const sums = centers.map(() => [0, 0, 0, 0]);
-    for (let i = 0; i < labs.length; i++) {
-      const c = assignments[i];
-      sums[c][0] += labs[i][0];
-      sums[c][1] += labs[i][1];
-      sums[c][2] += labs[i][2];
-      sums[c][3]++;
-    }
-    for (let c = 0; c < centers.length; c++) {
-      if (sums[c][3] > 0) {
-        centers[c] = [sums[c][0]/sums[c][3], sums[c][1]/sums[c][3], sums[c][2]/sums[c][3]];
-      }
-    }
-    if (!changed) break;
-  }
-
-  // 把聚类中心转回 RGB，再匹配到色板
-  const centerRgb = centers.map(c => {
-    // Lab → XYZ → RGB（简化：直接用聚类中心在 Lab 空间匹配色板）
-    let best = 0, bestD = Infinity;
-    for (let i = 0; i < PALETTE.length; i++) {
-      const d = (c[0]-PALETTE[i].lab[0])**2 + (c[1]-PALETTE[i].lab[1])**2 + (c[2]-PALETTE[i].lab[2])**2;
-      if (d < bestD) { bestD = d; best = i; }
-    }
-    return PALETTE[best].rgb;
-  });
-
-  // 每个像素分配到最近的聚类中心对应的色板颜色
-  let vi = 0;
-  return pixels.map(p => {
-    if (p === null) return null;
-    const c = assignments[vi++];
-    return centerRgb[c];
-  });
+  // 应用映射
+  const newGrid = grid.map(idx => idx === null ? null : (mergeMap[idx] || idx));
+  return { grid: newGrid, allowedIndices: Array.from(kept) };
 }
 
 // ========== Floyd-Steinberg 抖动 ==========
@@ -279,8 +246,9 @@ function kmeansQuantize(pixels, k, maxIter = 12) {
 /**
  * 误差扩散抖动：当前像素匹配误差按比例分给周围像素
  * 用两色交错模拟中间色，缓解渐变区域的色带问题
+ * 支持限定色板子集（限制用色数时）
  */
-function floydSteinbergDither(grid, gridSize) {
+function floydSteinbergDither(grid, gridSize, allowedIndices) {
   const buf = grid.map(p => p ? [p[0], p[1], p[2]] : null);
   const result = new Array(grid.length);
 
@@ -290,7 +258,7 @@ function floydSteinbergDither(grid, gridSize) {
       if (buf[idx] === null) { result[idx] = null; continue; }
 
       const oldR = buf[idx][0], oldG = buf[idx][1], oldB = buf[idx][2];
-      const pi = nearestColor([oldR, oldG, oldB]);
+      const pi = nearestColor([oldR, oldG, oldB], allowedIndices);
       const matched = PALETTE[pi].rgb;
       result[idx] = pi;
 
@@ -367,21 +335,24 @@ function processImage(img, opts) {
   matchCache.clear();
 
   // 1. 像素化
-  let pixels = sampleMode === 'dominant'
+  const pixels = sampleMode === 'dominant'
     ? sampleDominant(img, gridSize)
     : sampleAverage(img, gridSize);
 
-  // 2. 颜色量化（限制用色数时）
+  // 2. 如果限制颜色数量，先全色匹配统计，再合并到 N 色，得到允许的色号子集
+  let allowedIndices = null;
   if (colorLimit && colorLimit < PALETTE.length) {
-    pixels = kmeansQuantize(pixels, colorLimit);
+    const preGrid = pixels.map(p => p === null ? null : nearestColor(p));
+    const merged = mergeToNColors(preGrid, colorLimit);
+    allowedIndices = merged.allowedIndices;
   }
 
-  // 3. 色卡匹配 + 抖动
+  // 3. 色卡匹配 + 抖动（都在允许的色号子集里做）
   let grid;
   if (useDither) {
-    grid = floydSteinbergDither(pixels, gridSize);
+    grid = floydSteinbergDither(pixels, gridSize, allowedIndices);
   } else {
-    grid = pixels.map(p => p === null ? null : nearestColor(p));
+    grid = pixels.map(p => p === null ? null : nearestColor(p, allowedIndices));
   }
 
   // 4. 去孤立杂点
