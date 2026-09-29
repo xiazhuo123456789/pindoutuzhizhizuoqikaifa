@@ -287,27 +287,22 @@ Page({
   exportImage() {
     if (!this.data.hasResult) return;
 
-    // 校验grid数据
-    const gridCheck = this.currentGrid;
-    const expectedCount = this.data.gridSize * this.data.gridSize;
-    if (!gridCheck || gridCheck.length !== expectedCount) {
-      wx.showToast({
-        title: '数据异常，请重新生成',
-        icon: 'none',
-        duration: 2000
-      });
-      console.error('grid数据异常:', {
-        hasGrid: !!gridCheck,
-        length: gridCheck ? gridCheck.length : 0,
-        expected: expectedCount,
-        gridSize: this.data.gridSize
-      });
+    // 校验grid数据，并从数据本身推断gridSize（避免滑块拖动时的竞态问题）
+    const grid = this.currentGrid;
+    if (!grid || grid.length === 0) {
+      wx.showToast({ title: '请先生成图纸', icon: 'none' });
+      return;
+    }
+    const gridSize = Math.round(Math.sqrt(grid.length));
+    if (gridSize * gridSize !== grid.length) {
+      wx.showToast({ title: '数据异常，请重新生成', icon: 'none' });
+      console.error('grid长度不是完全平方数:', { length: grid.length });
       return;
     }
 
     wx.showLoading({ title: '生成图纸中...' });
 
-    const { gridSize, materialList, totalBeads } = this.data;
+    const { materialList } = this.data;
     const ctx = wx.createCanvasContext('hiddenCanvas');
 
     // 导出尺寸计算
@@ -349,7 +344,6 @@ Page({
     }
 
     // ===== 3. 填色块（浅色背景模式） =====
-    const grid = this.currentGrid || [];
     for (let y = 0; y < gridSize; y++) {
       for (let x = 0; x < gridSize; x++) {
         const idx = y * gridSize + x;
