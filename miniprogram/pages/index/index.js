@@ -160,6 +160,16 @@ Page({
           // 保存grid数据到普通变量（不走setData，避免大数据序列化丢失）
           this.currentGrid = grid;
 
+          // 调试信息
+          const nonNull = grid.filter(v => v !== null && v !== undefined).length;
+          console.log('grid生成完成:', {
+            length: grid.length,
+            expected: gridSize * gridSize,
+            nonNull: nonNull,
+            nullCount: grid.length - nonNull,
+            gridSize: gridSize
+          });
+
           this.setData({
             hasResult: true,
             materialList,
@@ -184,41 +194,20 @@ Page({
     return `rgb(${r},${g},${b})`;
   },
 
-  // 渲染图纸到canvas（带行列坐标）
+  // 渲染图纸到canvas（预览区只显示图纸，不带坐标）
   renderToCanvas(grid, gridSize) {
     const { canvasRenderSize, showGrid, showLabels } = this.data;
     const ctx = wx.createCanvasContext('beadCanvas');
 
-    // 坐标区域大小（固定）
-    const coordSize = Math.max(36, Math.floor(canvasRenderSize * 0.07));
-    // 图纸区域大小
-    const patternSize = canvasRenderSize - coordSize;
-    const cellSize = patternSize / gridSize;
+    // 预览区用整个canvas大小显示图纸，不带坐标
+    const cellSize = canvasRenderSize / gridSize;
 
     // 清空 + 背景
     ctx.clearRect(0, 0, canvasRenderSize, canvasRenderSize);
     ctx.setFillStyle('#FFFFFF');
     ctx.fillRect(0, 0, canvasRenderSize, canvasRenderSize);
 
-    // ===== 1. 顶部列号 =====
-    ctx.setFillStyle('#F0F0F0');
-    ctx.fillRect(coordSize, 0, patternSize, coordSize);
-    ctx.setFontSize(Math.max(9, Math.floor(coordSize * 0.38)));
-    ctx.setTextAlign('center');
-    ctx.setTextBaseline('middle');
-    ctx.setFillStyle('#333333');
-    for (let x = 0; x < gridSize; x++) {
-      ctx.fillText(String(x + 1), coordSize + x * cellSize + cellSize / 2, coordSize / 2);
-    }
-
-    // ===== 2. 左侧行号 =====
-    ctx.setFillStyle('#F0F0F0');
-    ctx.fillRect(0, coordSize, coordSize, patternSize);
-    for (let y = 0; y < gridSize; y++) {
-      ctx.fillText(String(y + 1), coordSize / 2, coordSize + y * cellSize + cellSize / 2);
-    }
-
-    // ===== 3. 填色块（浅色背景模式） =====
+    // ===== 1. 填色块（浅色背景模式） =====
     for (let y = 0; y < gridSize; y++) {
       for (let x = 0; x < gridSize; x++) {
         const idx = y * gridSize + x;
@@ -235,13 +224,13 @@ Page({
             ctx.setFillStyle(this.getLightColor(color.rgb, 0.35));
           }
         }
-        ctx.fillRect(coordSize + x * cellSize, coordSize + y * cellSize, cellSize, cellSize);
+        ctx.fillRect(x * cellSize, y * cellSize, cellSize, cellSize);
       }
     }
 
-    // ===== 4. 色号标注 =====
-    if (showLabels) {
-      const fontSize = Math.max(7, Math.floor(cellSize * 0.3));
+    // ===== 2. 色号标注（格子够大才显示） =====
+    if (showLabels && cellSize >= 12) {
+      const fontSize = Math.max(7, Math.floor(cellSize * 0.35));
       ctx.setFontSize(fontSize);
       ctx.setTextAlign('center');
       ctx.setTextBaseline('middle');
@@ -254,24 +243,24 @@ Page({
           const brightness = r * 0.299 + g * 0.587 + b * 0.114;
           // 深色背景白字，浅色背景黑字
           ctx.setFillStyle(brightness < 100 ? '#FFFFFF' : '#333333');
-          ctx.fillText(color.code, coordSize + x * cellSize + cellSize / 2, coordSize + y * cellSize + cellSize / 2);
+          ctx.fillText(color.code, x * cellSize + cellSize / 2, y * cellSize + cellSize / 2);
         }
       }
     }
 
-    // ===== 5. 网格线 =====
+    // ===== 3. 网格线 =====
     if (showGrid) {
       // 细网格线
       ctx.setStrokeStyle('rgba(0,0,0,0.12)');
       ctx.setLineWidth(0.8);
       for (let i = 0; i <= gridSize; i++) {
-        const pos = coordSize + i * cellSize;
+        const pos = i * cellSize;
         ctx.beginPath();
-        ctx.moveTo(pos, coordSize);
+        ctx.moveTo(pos, 0);
         ctx.lineTo(pos, canvasRenderSize);
         ctx.stroke();
         ctx.beginPath();
-        ctx.moveTo(coordSize, pos);
+        ctx.moveTo(0, pos);
         ctx.lineTo(canvasRenderSize, pos);
         ctx.stroke();
       }
@@ -279,13 +268,13 @@ Page({
       ctx.setStrokeStyle('#E74C3C');
       ctx.setLineWidth(2);
       for (let i = 0; i <= gridSize; i += 5) {
-        const pos = coordSize + i * cellSize;
+        const pos = i * cellSize;
         ctx.beginPath();
-        ctx.moveTo(pos, coordSize);
+        ctx.moveTo(pos, 0);
         ctx.lineTo(pos, canvasRenderSize);
         ctx.stroke();
         ctx.beginPath();
-        ctx.moveTo(coordSize, pos);
+        ctx.moveTo(0, pos);
         ctx.lineTo(canvasRenderSize, pos);
         ctx.stroke();
       }
