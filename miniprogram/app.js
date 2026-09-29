@@ -1,5 +1,5 @@
 App({
   onLaunch() {
-    console.log('豆趣拼豆图纸制作器启动');
+    console.log('拼豆小工具启动');
   }
 });
