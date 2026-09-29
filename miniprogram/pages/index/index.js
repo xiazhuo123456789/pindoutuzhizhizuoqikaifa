@@ -298,6 +298,24 @@ Page({
   exportImage() {
     if (!this.data.hasResult) return;
 
+    // 校验grid数据
+    const gridCheck = this.currentGrid;
+    const expectedCount = this.data.gridSize * this.data.gridSize;
+    if (!gridCheck || gridCheck.length !== expectedCount) {
+      wx.showToast({
+        title: '数据异常，请重新生成',
+        icon: 'none',
+        duration: 2000
+      });
+      console.error('grid数据异常:', {
+        hasGrid: !!gridCheck,
+        length: gridCheck ? gridCheck.length : 0,
+        expected: expectedCount,
+        gridSize: this.data.gridSize
+      });
+      return;
+    }
+
     wx.showLoading({ title: '生成图纸中...' });
 
     const { gridSize, materialList, totalBeads } = this.data;
