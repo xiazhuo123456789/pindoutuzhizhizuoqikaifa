@@ -302,7 +302,7 @@ function sampleDominant(data, gridSize, scale) {
         continue;
       }
 
-      if (darkPixels >= total * 0.35) {
+      if (darkPixels >= total * 0.2) {
         result.push([darkestR, darkestG, darkestB]);
         continue;
       }
@@ -351,7 +351,7 @@ function mergeToNColors(grid, targetN) {
       if (idx === victim) continue;
       const p1 = PALETTE[victim], p2 = PALETTE[idx];
       const dL = p1.lab[0] - p2.lab[0];
-      if (Math.abs(dL) > 20) continue;
+      if (Math.abs(dL) > 30) continue;
       const dA = p1.lab[1] - p2.lab[1];
       const dB = p1.lab[2] - p2.lab[2];
       const dist = dL * dL + dA * dA + dB * dB;
@@ -428,51 +428,117 @@ function clamp(v) { return Math.max(0, Math.min(255, v)); }
 // ========== 去孤立杂点 ==========
 
 function removeSpeckles(grid, gridSize) {
-  let result = grid.slice();
-  // 运行3次去杂点，逐步清理
-  for (let pass = 0; pass < 3; pass++) {
-    const next = result.slice();
-    for (let y = 0; y < gridSize; y++) {
-      for (let x = 0; x < gridSize; x++) {
-        const idx = y * gridSize + x;
-        if (result[idx] === null) continue;
+  const result = grid.slice();
+  for (let y = 0; y < gridSize; y++) {
+    for (let x = 0; x < gridSize; x++) {
+      const idx = y * gridSize + x;
+      if (result[idx] === null) continue;
 
-        // 收集8个邻居
-        const neighbors = [];
-        for (let dy = -1; dy <= 1; dy++) {
-          for (let dx = -1; dx <= 1; dx++) {
-            if (dy === 0 && dx === 0) continue;
-            const ny = y + dy, nx = x + dx;
-            if (ny < 0 || ny >= gridSize || nx < 0 || nx >= gridSize) continue;
-            const nidx = ny * gridSize + nx;
-            if (result[nidx] !== null) neighbors.push(result[nidx]);
-          }
-        }
+      const neighbors = [];
+      if (y > 0 && result[idx - gridSize] !== null) neighbors.push(result[idx - gridSize]);
+      if (y < gridSize - 1 && result[idx + gridSize] !== null) neighbors.push(result[idx + gridSize]);
+      if (x > 0 && result[idx - 1] !== null) neighbors.push(result[idx - 1]);
+      if (x < gridSize - 1 && result[idx + 1] !== null) neighbors.push(result[idx + 1]);
 
-        if (neighbors.length < 5) continue;
-
-        const curL = PALETTE[result[idx]].lab[0];
+      if (neighbors.length >= 3 && neighbors.every(n => n !== result[idx])) {
         const freq = {};
         for (const n of neighbors) freq[n] = (freq[n] || 0) + 1;
         let best = result[idx], bestCount = 0;
         for (const k in freq) {
           if (freq[k] > bestCount) { bestCount = freq[k]; best = Number(k); }
         }
-
-        // 深色孤立点：周围8个邻居中至少6个是浅色且不同
-        if (curL < 50 && bestCount >= 6 && best !== result[idx]) {
-          next[idx] = best;
-          continue;
-        }
-
-        // 普通杂点：所有邻居都不同
-        if (neighbors.every(n => n !== result[idx])) {
-          next[idx] = best;
-        }
+        result[idx] = best;
       }
     }
-    result = next;
   }
+  return result;
+}
+
+// ========== 小面积连通区域过滤 ==========
+
+/**
+ * 找到面积很小的同色连通区域，合并到周围最多的颜色
+ * 用于清理背景里的小黑点（包括2-3个连在一起的）
+ * @param {Array} grid - 颜色索引数组
+ * @param {number} gridSize - 每边格子数
+ * @param {number} maxRegionSize - 小于等于这个面积的区域会被合并
+ */
+function removeSmallRegions(grid, gridSize, maxRegionSize) {
+  maxRegionSize = maxRegionSize || 3;
+  const result = grid.slice();
+  const visited = new Array(grid.length).fill(false);
+  const smallRegions = [];
+
+  // 遍历所有格子，用BFS找连通区域
+  for (let startY = 0; startY < gridSize; startY++) {
+    for (let startX = 0; startX < gridSize; startX++) {
+      const startIdx = startY * gridSize + startX;
+      if (visited[startIdx] || result[startIdx] === null) continue;
+
+      const color = result[startIdx];
+      const region = [startIdx];
+      const queue = [startIdx];
+      visited[startIdx] = true;
+
+      while (queue.length > 0) {
+        const curIdx = queue.shift();
+        const cy = Math.floor(curIdx / gridSize);
+        const cx = curIdx % gridSize;
+
+        // 4连通：上下左右
+        const dirs = [[-1,0],[1,0],[0,-1],[0,1]];
+        for (const [dy, dx] of dirs) {
+          const ny = cy + dy, nx = cx + dx;
+          if (ny < 0 || ny >= gridSize || nx < 0 || nx >= gridSize) continue;
+          const nidx = ny * gridSize + nx;
+          if (visited[nidx] || result[nidx] !== color) continue;
+          visited[nidx] = true;
+          region.push(nidx);
+          queue.push(nidx);
+        }
+      }
+
+      // 面积很小的区域标记出来
+      if (region.length <= maxRegionSize) {
+        smallRegions.push(region);
+      }
+    }
+  }
+
+  // 把小区域替换成周围最多的颜色
+  for (const region of smallRegions) {
+    const neighborFreq = {};
+    const regionSet = new Set(region);
+
+    for (const cellIdx of region) {
+      const cy = Math.floor(cellIdx / gridSize);
+      const cx = cellIdx % gridSize;
+      const dirs = [[-1,0],[1,0],[0,-1],[0,1]];
+      for (const [dy, dx] of dirs) {
+        const ny = cy + dy, nx = cx + dx;
+        if (ny < 0 || ny >= gridSize || nx < 0 || nx >= gridSize) continue;
+        const nidx = ny * gridSize + nx;
+        if (regionSet.has(nidx) || result[nidx] === null) continue;
+        const nc = result[nidx];
+        neighborFreq[nc] = (neighborFreq[nc] || 0) + 1;
+      }
+    }
+
+    let bestColor = null, bestCount = 0;
+    for (const c in neighborFreq) {
+      if (neighborFreq[c] > bestCount) {
+        bestCount = neighborFreq[c];
+        bestColor = Number(c);
+      }
+    }
+
+    if (bestColor !== null) {
+      for (const cellIdx of region) {
+        result[cellIdx] = bestColor;
+      }
+    }
+  }
+
   return result;
 }
 
@@ -575,6 +641,7 @@ module.exports = {
   mergeToNColors,
   floydSteinbergDither,
   removeSpeckles,
+  removeSmallRegions,
   enhanceEdges,
   processGrid,
   buildMaterialList,
