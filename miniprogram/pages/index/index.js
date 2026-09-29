@@ -1,4 +1,4 @@
-const beadCore = require('../../utils/beadCore.js');
+﻿const beadCore = require('../../utils/beadCore.js');
 const { PALETTE, sampleAverage, sampleDominant, processGrid, buildMaterialList } = beadCore;
 
 Page({
@@ -129,6 +129,16 @@ Page({
         height: workSize,
         success: (res) => {
           const data = res.data;
+
+          // 调试：检查几个关键位置的像素颜色
+          const checkPixel = (px, py, label) => {
+            const i = (py * workSize + px) * 4;
+            console.log(label + ' RGBA:', data[i], data[i+1], data[i+2], data[i+3]);
+          };
+          checkPixel(10, 10, '左上角(背景)');
+          checkPixel(Math.floor(workSize/2), Math.floor(workSize/2), '中心');
+          checkPixel(workSize - 10, 10, '右上角(太阳附近)');
+          console.log('图片参数:', { imgWidth, imgHeight, side, sx, sy, workSize, gridSize });
 
           // 1. 像素化采样
           const pixels = sampleMode === 'dominant'
