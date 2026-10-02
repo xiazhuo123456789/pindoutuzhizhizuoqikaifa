@@ -62,3 +62,8 @@ pindoutuzhizhizuoqikaifa/
 ## 🤝 参与贡献
 
 欢迎提交 Issue 或 Pull Request 改进算法、优化界面、添加新功能（如导出 PDF、支持更多调色板等）。
+
+
+---
+
+**开发者**：xiazhuo
