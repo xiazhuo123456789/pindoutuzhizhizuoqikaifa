@@ -1,37 +1,64 @@
-# 拼豆图纸制作器开发
+# 拼豆图纸制作器
 
-#### 介绍
-拼豆图纸制作器开发
+> 将任意图片转换为拼豆图纸的在线工具，支持微信小程序与网页版双端使用。
 
-#### 软件架构
-软件架构说明
+## 📋 项目简介
 
+拼豆（Perler Beads）是一种创意手工，需要按照图纸将彩色豆粒摆放在模板上拼出图案。本工具可以把照片、插画等图片自动转换为拼豆图纸，并提供颜色量化、网格分割、用珠统计等功能，让你轻松规划拼豆作品。
 
-#### 安装教程
+**核心功能：**
+- 🎨 图片上传与颜色量化（支持自定义调色板）
+- 📐 网格化处理（可调节网格大小与密度）
+- 🧮 用珠数量统计（按颜色分类显示需要的豆粒数量）
+- 📱 微信小程序版：随时随地生成图纸
+- 🌐 网页版：大屏操作更便捷
 
-1.  xxxx
-2.  xxxx
-3.  xxxx
+## 🛠️ 技术栈
 
-#### 使用说明
+- **微信小程序端**：原生小程序框架 + Canvas 图像处理
+- **网页端**：HTML5 Canvas + JavaScript
+- **核心算法**：`beadCore.js` 封装颜色量化与网格划分逻辑
 
-1.  xxxx
-2.  xxxx
-3.  xxxx
+## 📁 项目结构
 
-#### 参与贡献
+```
+pindoutuzhizhizuoqikaifa/
+├── index.html              # 网页版入口
+├── app.js                  # 网页版主逻辑
+├── palette.js              # 调色板配置
+├── miniprogram/            # 微信小程序版
+│   ├── app.js/json/wxss    # 小程序主配置
+│   ├── pages/index/        # 主页面（上传图片 + 生成图纸）
+│   ├── utils/beadCore.js   # 拼豆算法核心（网页/小程序共用）
+│   └── project.config.json # 小程序工程配置
+```
 
-1.  Fork 本仓库
-2.  新建 Feat_xxx 分支
-3.  提交代码
-4.  新建 Pull Request
+## 🚀 使用说明
 
+### 微信小程序版
 
-#### 特技
+1. 使用微信开发者工具打开 `miniprogram/` 目录
+2. 填入 AppID（或使用测试号）
+3. 编译运行，在模拟器或真机预览
+4. 点击「选择图片」→ 调整网格参数 → 生成图纸 → 查看用珠统计
 
-1.  使用 Readme\_XXX.md 来支持不同的语言，例如 Readme\_en.md, Readme\_zh.md
-2.  Gitee 官方博客 [blog.gitee.com](https://blog.gitee.com)
-3.  你可以 [https://gitee.com/explore](https://gitee.com/explore) 这个地址来了解 Gitee 上的优秀开源项目
-4.  [GVP](https://gitee.com/gvp) 全称是 Gitee 最有价值开源项目，是综合评定出的优秀开源项目
-5.  Gitee 官方提供的使用手册 [https://gitee.com/help](https://gitee.com/help)
-6.  Gitee 封面人物是一档用来展示 Gitee 会员风采的栏目 [https://gitee.com/gitee-stars/](https://gitee.com/gitee-stars/)
+### 网页版
+
+1. 在浏览器中打开 `index.html`（或部署到服务器）
+2. 上传图片文件
+3. 调整参数（网格大小、颜色数量等）
+4. 生成图纸后可导出或打印
+
+## 🎨 调色板说明
+
+`palette.js` 定义了拼豆的标准颜色（通常对应真实拼豆产品的色号），颜色量化算法会将原图像素映射到这些颜色。你可以根据手头的拼豆套装修改调色板配置。
+
+## 📝 开发记录
+
+- 支持网页与小程序双端
+- 核心算法抽取为独立模块，便于复用
+- 颜色量化基于欧氏距离最近邻算法
+
+## 🤝 参与贡献
+
+欢迎提交 Issue 或 Pull Request 改进算法、优化界面、添加新功能（如导出 PDF、支持更多调色板等）。
